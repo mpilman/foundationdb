@@ -122,6 +122,16 @@ static void simInitTLS(Reference<TLSOptions> tlsOptions) {
 	tlsOptions->register_network();
 }
 
+static bool useObjectSerializer(int b) {
+	if (b == 0) {
+		return false;
+	} else if (b == 1) {
+		return true;
+	} else {
+		return g_random->coinflip();
+	}
+}
+
 ACTOR Future<Void> runBackup( Reference<ClusterConnectionFile> connFile ) {
 	state std::vector<Future<Void>> agentFutures;
 
@@ -197,7 +207,8 @@ ACTOR Future<ISimulator::KillType> simulatedFDBDRebooter(Reference<ClusterConnec
                                                          LocalityData localities, ProcessClass processClass,
                                                          std::string* dataFolder, std::string* coordFolder,
                                                          std::string baseFolder, ClusterConnectionString connStr,
-                                                         bool useSeedFile, bool runBackupAgents) {
+                                                         bool useSeedFile, bool runBackupAgents,
+                                                         bool objSerializer) {
 	state ISimulator::ProcessInfo *simProcess = g_simulator.getCurrentProcess();
 	state UID randomId = g_nondeterministic_random->randomUniqueID();
 	state int cycles = 0;
@@ -212,7 +223,9 @@ ACTOR Future<ISimulator::KillType> simulatedFDBDRebooter(Reference<ClusterConnec
 
 		wait( delay( waitTime ) );
 
-		state ISimulator::ProcessInfo *process =  g_simulator.newProcess( "Server", ip, port, listenPerProcess, localities, processClass, dataFolder->c_str(), coordFolder->c_str() );
+		state ISimulator::ProcessInfo *process =  g_simulator.newProcess("Server", ip, port, listenPerProcess, localities,
+                                                                         processClass, dataFolder->c_str(),
+                                                                         coordFolder->c_str(), objSerializer);
 		wait( g_simulator.onProcess(process, TaskDefaultYield) );	// Now switch execution to the process on which we will run
 		state Future<ISimulator::KillType> onShutdown = process->onShutdown();
 
@@ -357,7 +370,7 @@ std::map< Optional<Standalone<StringRef>>, std::vector< std::vector< std::string
 ACTOR Future<Void> simulatedMachine(ClusterConnectionString connStr, std::vector<IPAddress> ips, bool sslEnabled,
                                     Reference<TLSOptions> tlsOptions, LocalityData localities,
                                     ProcessClass processClass, std::string baseFolder, bool restarting,
-                                    bool useSeedFile, bool runBackupAgents, bool sslOnly) {
+                                    bool useSeedFile, bool runBackupAgents, bool sslOnly, int objSerializer) {
 	state int bootCount = 0;
 	state std::vector<std::string> myFolders;
 	state std::vector<std::string> coordFolders;
@@ -399,7 +412,10 @@ ACTOR Future<Void> simulatedMachine(ClusterConnectionString connStr, std::vector
 				std::string path = joinPath(myFolders[i], "fdb.cluster");
 				Reference<ClusterConnectionFile> clusterFile(useSeedFile ? new ClusterConnectionFile(path, connStr.toString()) : new ClusterConnectionFile(path));
 				const int listenPort = i*listenPerProcess + 1;
-				processes.push_back(simulatedFDBDRebooter(clusterFile, ips[i], sslEnabled, tlsOptions, listenPort, listenPerProcess, localities, processClass, &myFolders[i], &coordFolders[i], baseFolder, connStr, useSeedFile, runBackupAgents));
+				processes.push_back(simulatedFDBDRebooter(clusterFile, ips[i], sslEnabled, tlsOptions,
+                                                          listenPort, listenPerProcess, localities, processClass,
+                                                          &myFolders[i], &coordFolders[i], baseFolder, connStr,
+                                                          useSeedFile, runBackupAgents, useObjectSerializer(objSerializer)));
 				TraceEvent("SimulatedMachineProcess", randomId).detail("Address", NetworkAddress(ips[i], listenPort, true, false)).detailext("ZoneId", localities.zoneId()).detailext("DataHall", localities.dataHallId()).detail("Folder", myFolders[i]);
 			}
 
@@ -601,9 +617,10 @@ IPAddress makeIPAddressForSim(bool isIPv6, std::array<int, 4> parts) {
 
 #include "fdbclient/MonitorLeader.h"
 
-ACTOR Future<Void> restartSimulatedSystem(
-		vector<Future<Void>> *systemActors, std::string baseFolder, int* pTesterCount,
-		Optional<ClusterConnectionString> *pConnString, Standalone<StringRef> *pStartingConfiguration, Reference<TLSOptions> tlsOptions, int extraDB) {
+ACTOR Future<Void> restartSimulatedSystem(vector<Future<Void>>* systemActors, std::string baseFolder, int* pTesterCount,
+                                          Optional<ClusterConnectionString>* pConnString,
+                                          Standalone<StringRef>* pStartingConfiguration,
+                                          Reference<TLSOptions> tlsOptions, int extraDB, int objSerializer) {
 	CSimpleIni ini;
 	ini.SetUnicode();
 	ini.LoadFile(joinPath(baseFolder, "restartInfo.ini").c_str());
@@ -698,8 +715,13 @@ ACTOR Future<Void> restartSimulatedSystem(
 			localities.set(LiteralStringRef("data_hall"), dcUID);
 
 			// SOMEDAY: parse backup agent from test file
-			systemActors->push_back( reportErrors( simulatedMachine(
-				conn, ipAddrs, usingSSL, tlsOptions, localities, processClass, baseFolder, true, i == useSeedForMachine, enableExtraDB, usingSSL && (listenersPerProcess == 1 || processClass == ProcessClass::TesterClass) ),
+            systemActors->push_back(
+                reportErrors(
+                    simulatedMachine(
+                        conn, ipAddrs, usingSSL, tlsOptions, localities, processClass, baseFolder,
+                        true, i == useSeedForMachine, enableExtraDB,
+                        usingSSL && (listenersPerProcess == 1 || processClass == ProcessClass::TesterClass),
+                        objSerializer),
 				processClass == ProcessClass::TesterClass ? "SimulatedTesterMachine" : "SimulatedMachine") );
 		}
 
@@ -1081,7 +1103,7 @@ void SimulationConfig::generateNormalConfig(int minimumReplication, int minimumR
 
 void setupSimulatedSystem(vector<Future<Void>>* systemActors, std::string baseFolder, int* pTesterCount,
                           Optional<ClusterConnectionString>* pConnString, Standalone<StringRef>* pStartingConfiguration,
-                          int extraDB, int minimumReplication, int minimumRegions, Reference<TLSOptions> tlsOptions) {
+                          int extraDB, int minimumReplication, int minimumRegions, Reference<TLSOptions> tlsOptions, int objSerializer) {
 	// SOMEDAY: this does not test multi-interface configurations
 	SimulationConfig simconfig(extraDB, minimumReplication, minimumRegions);
 	StatusObject startingConfigJSON = simconfig.db.toJSON(true);
@@ -1276,8 +1298,11 @@ void setupSimulatedSystem(vector<Future<Void>>* systemActors, std::string baseFo
 			// check the sslEnablementMap using only one ip(
 			LocalityData	localities(Optional<Standalone<StringRef>>(), zoneId, machineId, dcUID);
 			localities.set(LiteralStringRef("data_hall"), dcUID);
-			systemActors->push_back(reportErrors(simulatedMachine(conn, ips, sslEnabled, tlsOptions,
-				localities, processClass, baseFolder, false, machine == useSeedForMachine, true, sslOnly ), "SimulatedMachine"));
+            systemActors->push_back(reportErrors(
+                                        simulatedMachine(conn, ips, sslEnabled, tlsOptions,
+                                                         localities, processClass, baseFolder, false, machine == useSeedForMachine, true, sslOnly,
+                                                         objSerializer),
+                                        "SimulatedMachine"));
 
 			if (extraDB && g_simulator.extraDB->toString() != conn.toString()) {
 				std::vector<IPAddress> extraIps;
@@ -1291,7 +1316,7 @@ void setupSimulatedSystem(vector<Future<Void>>* systemActors, std::string baseFo
 				localities.set(LiteralStringRef("data_hall"), dcUID);
 				systemActors->push_back(reportErrors(simulatedMachine(*g_simulator.extraDB, extraIps, sslEnabled, tlsOptions,
 					localities,
-					processClass, baseFolder, false, machine == useSeedForMachine, false, sslOnly ), "SimulatedMachine"));
+					processClass, baseFolder, false, machine == useSeedForMachine, false, sslOnly, objSerializer), "SimulatedMachine"));
 			}
 
 			assignedMachines++;
@@ -1316,10 +1341,10 @@ void setupSimulatedSystem(vector<Future<Void>>* systemActors, std::string baseFo
 		ips.push_back(makeIPAddressForSim(useIPv6, { 3, 4, 3, i + 1 }));
 		Standalone<StringRef> newZoneId = Standalone<StringRef>(g_random->randomUniqueID().toString());
 		LocalityData	localities(Optional<Standalone<StringRef>>(), newZoneId, newZoneId, Optional<Standalone<StringRef>>());
-		systemActors->push_back( reportErrors( simulatedMachine(
+		systemActors->push_back(reportErrors(simulatedMachine(
 			conn, ips, sslEnabled, tlsOptions,
 			localities, ProcessClass(ProcessClass::TesterClass, ProcessClass::CommandLineSource),
-			baseFolder, false, i == useSeedForMachine, false, sslEnabled ),
+			baseFolder, false, i == useSeedForMachine, false, sslEnabled, objSerializer),
 			"SimulatedTesterMachine") );
 	}
 	*pStartingConfiguration = startingConfigString;
@@ -1375,7 +1400,7 @@ void checkExtraDB(const char *testFile, int &extraDB, int &minimumReplication, i
 	ifs.close();
 }
 
-ACTOR void setupAndRun(std::string dataFolder, const char *testFile, bool rebooting, Reference<TLSOptions> tlsOptions ) {
+ACTOR void setupAndRun(std::string dataFolder, const char *testFile, bool rebooting, Reference<TLSOptions> tlsOptions, int objSerializer ) {
 	state vector<Future<Void>> systemActors;
 	state Optional<ClusterConnectionString> connFile;
 	state Standalone<StringRef> startingConfiguration;
@@ -1390,9 +1415,11 @@ ACTOR void setupAndRun(std::string dataFolder, const char *testFile, bool reboot
 	    g_simulator.newProcess("TestSystem", IPAddress(0x01010101), 1, 1,
 	                           LocalityData(Optional<Standalone<StringRef>>(),
 	                                        Standalone<StringRef>(g_random->randomUniqueID().toString()),
-	                                        Standalone<StringRef>(g_random->randomUniqueID().toString()),
-	                                        Optional<Standalone<StringRef>>()),
-	                           ProcessClass(ProcessClass::TesterClass, ProcessClass::CommandLineSource), "", ""),
+<<<<<<< variant A
+                                            Standalone<StringRef>(g_random->randomUniqueID().toString()),
+                                            Optional<Standalone<StringRef>>()),
+                               ProcessClass(ProcessClass::TesterClass, ProcessClass::CommandLineSource), "", ""
+                               useObjectSerializer(objSerializer)),
 	    TaskDefaultYield));
 	Sim2FileSystem::newFileSystem();
 	FlowTransport::createInstance(1);
@@ -1405,12 +1432,13 @@ ACTOR void setupAndRun(std::string dataFolder, const char *testFile, bool reboot
 	try {
 		//systemActors.push_back( startSystemMonitor(dataFolder) );
 		if (rebooting) {
-			wait( timeoutError( restartSimulatedSystem( &systemActors, dataFolder, &testerCount, &connFile, &startingConfiguration, tlsOptions, extraDB), 100.0 ) );
-		}
-		else {
+			wait(timeoutError(restartSimulatedSystem(&systemActors, dataFolder, &testerCount, &connFile,
+			                                         &startingConfiguration, tlsOptions, extraDB, objSerializer),
+			                  100.0));
+		} else {
 			g_expect_full_pointermap = 1;
 			setupSimulatedSystem(&systemActors, dataFolder, &testerCount, &connFile, &startingConfiguration, extraDB,
-			                     minimumReplication, minimumRegions, tlsOptions);
+			                     minimumReplication, minimumRegions, tlsOptions, objSerializer);
 			wait( delay(1.0) ); // FIXME: WHY!!!  //wait for machines to boot
 		}
 		std::string clusterFileDir = joinPath( dataFolder, g_random->randomUniqueID().toString() );

@@ -53,6 +53,7 @@ public:
 		NetworkAddress address;
 		LocalityData	locality;
 		ProcessClass startingClass;
+		bool useObjectSerializer;
 		TDMetricCollection tdmetrics;
 		std::map<NetworkAddress, Reference<IListener>> listenerMap;
 		bool failed;
@@ -68,10 +69,12 @@ public:
 		double fault_injection_p1, fault_injection_p2;
 
 		ProcessInfo(const char* name, LocalityData locality, ProcessClass startingClass, NetworkAddressList addresses,
-					INetworkConnections *net, const char* dataFolder, const char* coordinationFolder )
-			: name(name), locality(locality), startingClass(startingClass), addresses(addresses), address(addresses.address), dataFolder(dataFolder),
-				network(net), coordinationFolder(coordinationFolder), failed(false), excluded(false), cpuTicks(0),
-				rebooting(false), fault_injection_p1(0), fault_injection_p2(0),
+					INetworkConnections *net, const char* dataFolder, const char* coordinationFolder,
+                    bool useObjectSerializer)
+			: name(name), locality(locality), startingClass(startingClass), useObjectSerializer(useObjectSerializer),
+              addresses(addresses), address(addresses.address), dataFolder(dataFolder),
+              network(net), coordinationFolder(coordinationFolder), failed(false), excluded(false), cpuTicks(0),
+              rebooting(false), fault_injection_p1(0), fault_injection_p2(0),
 				fault_injection_r(0), machine(0), cleared(false) {}
 
 		Future<KillType> onShutdown() { return shutdownSignal.getFuture(); }
@@ -134,14 +137,33 @@ public:
 		MachineInfo() : machineProcess(0) {}
 	};
 
-	ProcessInfo* getProcess( Endpoint const& endpoint ) { return getProcessByAddress(endpoint.getPrimaryAddress()); }
+	template <class Func>
+	ProcessInfo* asNewProcess( const char* name, uint32_t ip, uint16_t port, LocalityData locality, ProcessClass startingClass,
+							   Func func, const char* dataFolder, const char* coordinationFolder, bool useObjectSerializer ) {
+		ProcessInfo* m = newProcess(name, ip, port, locality, startingClass, dataFolder, coordinationFolder, useObjectSerializer);
+//		ProcessInfo* m = newProcess(name, ip, port, zoneId, machineId, dcId, startingClass, dataFolder, coordinationFolder);
+		std::swap(m, currentProcess);
+		try {
+			func();
+		} catch (Error& e) {
+			TraceEvent(SevError, "NewMachineError").error(e);
+			killProcess(currentProcess, KillInstantly);
+		} catch (...) {
+			TraceEvent(SevError, "NewMachineError").error(unknown_error());
+			killProcess(currentProcess, KillInstantly);
+		}
+		std::swap(m, currentProcess);
+		return m;
+	}
+
+	ProcessInfo* getProcess( Endpoint const& endpoint ) { return getProcessByAddress(endpoint.address); }
 	ProcessInfo* getCurrentProcess() { return currentProcess; }
 	virtual Future<Void> onProcess( ISimulator::ProcessInfo *process, int taskID = -1 ) = 0;
 	virtual Future<Void> onMachine( ISimulator::ProcessInfo *process, int taskID = -1 ) = 0;
 
 	virtual ProcessInfo* newProcess(const char* name, IPAddress ip, uint16_t port, uint16_t listenPerProcess,
 	                                LocalityData locality, ProcessClass startingClass, const char* dataFolder,
-	                                const char* coordinationFolder) = 0;
+	                                const char* coordinationFolder, bool useObjectSerializer) = 0;
 	virtual void killProcess( ProcessInfo* machine, KillType ) = 0;
 	virtual void rebootProcess(Optional<Standalone<StringRef>> zoneId, bool allProcesses ) = 0;
 	virtual void rebootProcess( ProcessInfo* process, KillType kt ) = 0;
@@ -154,6 +176,7 @@ public:
 	virtual bool isAvailable() const = 0;
 	virtual bool datacenterDead(Optional<Standalone<StringRef>> dcId) const = 0;
 	virtual void displayWorkers() const;
+	virtual bool useObjectSerializer() const { return currentProcess->useObjectSerializer; }
 
 	virtual void addRole(NetworkAddress const& address, std::string const& role) {
 		roleAddresses[address][role] ++;

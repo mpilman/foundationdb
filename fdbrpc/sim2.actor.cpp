@@ -977,7 +977,7 @@ public:
 	}
 	virtual ProcessInfo* newProcess(const char* name, IPAddress ip, uint16_t port, uint16_t listenPerProcess,
 	                                LocalityData locality, ProcessClass startingClass, const char* dataFolder,
-	                                const char* coordinationFolder) {
+	                                const char* coordinationFolder, bool objSerializer) {
 		ASSERT( locality.machineId().present() );
 		MachineInfo& machine = machines[ locality.machineId().get() ];
 		if (!machine.machineId.present())
@@ -999,7 +999,7 @@ public:
 		// These files must live on after process kills for sim purposes.
 		if( machine.machineProcess == 0 ) {
 			NetworkAddress machineAddress(ip, 0, false, false);
-			machine.machineProcess = new ProcessInfo("Machine", locality, startingClass, {machineAddress}, this, "", "");
+			machine.machineProcess = new ProcessInfo("Machine", locality, startingClass, {machineAddress}, this, "", "", objSerializer);
 			machine.machineProcess->machine = &machine;
 		}
 
@@ -1009,7 +1009,7 @@ public:
 			addresses.secondaryAddress = NetworkAddress(ip, port+1, true, false);
 		}
 
-		ProcessInfo* m = new ProcessInfo(name, locality, startingClass, addresses, this, dataFolder, coordinationFolder);
+		ProcessInfo* m = new ProcessInfo(name, locality, startingClass, addresses, this, dataFolder, coordinationFolder, objSerializer);
 		for (int processPort = port; processPort < port + listenPerProcess; ++processPort) {
 			NetworkAddress address(ip, processPort, true, false); // SOMEDAY see above about becoming SSL!
 			m->listenerMap[address] = Reference<IListener>( new Sim2Listener(m, address) );
@@ -1570,8 +1570,11 @@ public:
 
 	Sim2() : time(0.0), taskCount(0), yielded(false), yield_limit(0), currentTaskID(-1) {
 		// Not letting currentProcess be NULL eliminates some annoying special cases
-		currentProcess = new ProcessInfo( "NoMachine", LocalityData(Optional<Standalone<StringRef>>(), StringRef(), StringRef(), StringRef()), ProcessClass(), {NetworkAddress()}, this, "", "" );
-		g_network = net2 = newNet2(false, true);
+		currentProcess = new ProcessInfo("NoMachine", LocalityData(Optional<Standalone<StringRef>>(),
+                                                                   StringRef(), StringRef(), StringRef()),
+                                         ProcessClass(), {NetworkAddress()}, this, "", "", false);
+		// TODO[mpilman]: object serializer in simulation
+		g_network = net2 = newNet2(false, true, false);
 		Net2FileSystem::newFileSystem();
 		check_yield(0);
 	}
