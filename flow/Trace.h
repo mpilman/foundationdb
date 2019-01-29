@@ -77,6 +77,11 @@ public:
 
 	std::string toString() const;
 	void validateFormat() const;
+	template<class Archiver>
+	void serialize(Archiver& ar) {
+		static_assert(is_fb_function<Archiver>, "Streaming serializer has to use load/save");
+		serializer(ar, fields);
+	}
 
 private:
 	FieldContainer fields;

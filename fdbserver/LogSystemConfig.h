@@ -28,6 +28,7 @@
 
 template <class Interface>
 struct OptionalInterface {
+	friend class serializable_traits<OptionalInterface<Interface>>;
 	// Represents an interface with a known id() and possibly known actual endpoints.
 	// For example, an OptionalInterface<TLogInterface> represents a particular tlog by id, which you might or might not presently know how to communicate with
 
@@ -54,6 +55,25 @@ protected:
 	UID ident;
 	Optional<Interface> iface;
 };
+
+template <class Interface>
+struct serializable_traits<OptionalInterface<Interface>> : std::true_type {
+	template <class Archiver>
+	static void serialize(Archiver& ar, OptionalInterface<Interface>& m) {
+		if constexpr (!Archiver::isDeserializing) {
+			if (m.iface.present()) {
+				m.ident = m.iface.get().id();
+			}
+		}
+		::serializer(ar, m.iface, m.ident);
+		if constexpr (Archiver::isDeserializing) {
+			if (m.iface.present()) {
+				m.ident = m.iface.get().id();
+			}
+		}
+	}
+};
+
 
 struct TLogSet {
 	std::vector<OptionalInterface<TLogInterface>> tLogs;

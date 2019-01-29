@@ -158,6 +158,8 @@ public:
 
 	Endpoint loadedEndpoint(const UID& token);
 
+	void loadedEndpoint(Endpoint&);
+
 private:
 	class TransportData* self;
 };
