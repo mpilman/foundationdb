@@ -27,6 +27,7 @@
 #include "flow/Error.h"
 #include "flow/Trace.h"
 #include "flow/ObjectSerializerTraits.h"
+#include "flow/FileIdentifier.h"
 #include <algorithm>
 #include <stdint.h>
 #include <string>
@@ -504,6 +505,7 @@ extern std::string format(const char* form, ...);
 #pragma pack( push, 4 )
 class StringRef {
 public:
+	constexpr static FileIdentifier file_identifier = 13300811;
 	StringRef() : data(0), length(0) {}
 	StringRef( Arena& p, const StringRef& toCopy ) : data( new (p) uint8_t[toCopy.size()] ), length( toCopy.size() ) {
 		memcpy( (void*)data, toCopy.data, length );
@@ -748,6 +750,7 @@ template <class T>
 class VectorRef {
 public:
 	using value_type = T;
+	static constexpr FileIdentifier file_identifier = (0x8 << 24) | FileIdentifierFor<T>::value;
 
 	// T must be trivially destructible (and copyable)!
 	VectorRef() : data(0), m_size(0), m_capacity(0) {}

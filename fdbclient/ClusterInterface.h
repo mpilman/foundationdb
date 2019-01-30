@@ -131,6 +131,7 @@ struct ClientVersionRef {
 };
 
 struct OpenDatabaseRequest {
+	constexpr static FileIdentifier file_identifier = 2799502;
 	// Sent by the native API to the cluster controller to open a database and track client
 	//   info changes.  Returns immediately if the current client info id is different from
 	//   knownClientInfoID; otherwise returns when it next changes (or perhaps after a long interval)
@@ -151,6 +152,7 @@ struct OpenDatabaseRequest {
 };
 
 struct SystemFailureStatus {
+	constexpr static FileIdentifier file_identifier = 3194108;
 	NetworkAddressList addresses;
 	FailureStatus status;
 
@@ -174,6 +176,7 @@ struct FailureMonitoringRequest {
 	// The failureInformationVersion returned in reply should be passed back to the
 	//   next request to facilitate delta compression of the failure information.
 
+	constexpr static FileIdentifier file_identifier = 5867851;
 	Optional<FailureStatus> senderStatus;
 	Version failureInformationVersion;
 	NetworkAddressList addresses;
@@ -186,6 +189,7 @@ struct FailureMonitoringRequest {
 };
 
 struct FailureMonitoringReply {
+	constexpr static FileIdentifier file_identifier = 6820325;
 	VectorRef< SystemFailureStatus > changes;
 	Version failureInformationVersion;
 	bool allOthersFailed;							// If true, changes are relative to all servers being failed, otherwise to the version given in the request
@@ -200,6 +204,7 @@ struct FailureMonitoringReply {
 };
 
 struct StatusRequest {
+	constexpr static FileIdentifier file_identifier = 14419140;
 	ReplyPromise< struct StatusReply > reply;
 
 	template <class Ar>
@@ -209,6 +214,7 @@ struct StatusRequest {
 };
 
 struct StatusReply {
+	constexpr static FileIdentifier file_identifier = 9980504;
 	StatusObject statusObj;
 	std::string statusStr;
 
@@ -234,6 +240,7 @@ struct StatusReply {
 };
 
 struct GetClientWorkersRequest {
+	constexpr static FileIdentifier file_identifier = 10771791;
 	ReplyPromise<vector<ClientWorkerInterface>> reply;
 
 	GetClientWorkersRequest() {}
@@ -245,6 +252,7 @@ struct GetClientWorkersRequest {
 };
 
 struct ForceRecoveryRequest {
+	constexpr static FileIdentifier file_identifier = 14821350;
 	Key dcId;
 	ReplyPromise<Void> reply;
 

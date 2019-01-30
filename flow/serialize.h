@@ -723,6 +723,7 @@ private:
 struct ISerializeSource {
 	virtual void serializePacketWriter(PacketWriter&, bool useObjectSerializer) const = 0;
 	virtual void serializeBinaryWriter(BinaryWriter&) const = 0;
+	virtual void serializeBinaryWriter(ObjectWriter&) const = 0;
 };
 
 template <class T, class V>
@@ -745,7 +746,12 @@ struct SerializeSource : MakeSerializeSource<SerializeSource<T>, T> {
 	using value_type = T;
 	T const& value;
 	SerializeSource(T const& value) : value(value) {}
-	template <class Ar> void serialize(Ar& ar) const { ar << value; }
+	virtual void serializeBinaryWriter(ObjectWriter& w) const {
+		w.serialize(value);
+	}
+	template <class Ar> void serialize(Ar& ar) const {
+		ar << value;
+	}
 	virtual T const& get() const { return value; }
 };
 
@@ -756,6 +762,9 @@ struct SerializeBoolAnd : MakeSerializeSource<SerializeBoolAnd<T>, T> {
 	T const& value;
 	SerializeBoolAnd( bool b, T const& value ) : b(b), value(value) {}
 	template <class Ar> void serialize(Ar& ar) const { ar << b << value; }
+	virtual void serializeBinaryWriter(ObjectWriter& w) const {
+		ASSERT(false);
+	}
 	virtual T const& get() const {
 		// This is only used for the streaming serializer
 		ASSERT(false);
