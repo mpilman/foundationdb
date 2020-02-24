@@ -67,6 +67,7 @@ struct NetworkData {
 	int64_t countFileLogicalReads;
 	int64_t countAIOSubmit;
 	int64_t countAIOCollect;
+	double aioSubmitLatency;
 	int64_t countFileCacheWrites;
 	int64_t countFileCacheReads;
 	int64_t countFileCacheWritesBlocked;
@@ -112,6 +113,7 @@ struct NetworkData {
 		countFileLogicalWrites = Int64Metric::getValueOrDefault(LiteralStringRef("AsyncFile.CountLogicalWrites"));
 		countFileLogicalReads = Int64Metric::getValueOrDefault(LiteralStringRef("AsyncFile.CountLogicalReads"));
 		countAIOSubmit = Int64Metric::getValueOrDefault(LiteralStringRef("AsyncFile.CountAIOSubmit"));
+		aioSubmitLatency = DoubleMetric::getValueOrDefault(LiteralStringRef("AsyncFile.AIOSubmitLatency"));
 		countAIOCollect = Int64Metric::getValueOrDefault(LiteralStringRef("AsyncFile.CountAIOCollect"));
 		countFileCacheWrites = Int64Metric::getValueOrDefault(LiteralStringRef("AsyncFile.CountCacheWrites"));
 		countFileCacheReads = Int64Metric::getValueOrDefault(LiteralStringRef("AsyncFile.CountCacheReads"));

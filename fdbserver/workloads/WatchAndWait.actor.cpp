@@ -20,6 +20,7 @@
 
 #include "fdbrpc/ContinuousSample.h"
 #include "fdbclient/NativeAPI.actor.h"
+#include "fdbclient/DatabaseContext.h"
 #include "fdbserver/TesterInterface.actor.h"
 #include "fdbserver/workloads/BulkSetup.actor.h"
 #include "fdbclient/ReadYourWrites.h"

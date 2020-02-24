@@ -155,6 +155,7 @@ public:
 	static void init( Reference<IEventFD> ev, double ioTimeout ) {
 		if( !g_network->isSimulated() ) {
 			ctx.countAIOSubmit.init(LiteralStringRef("AsyncFile.CountAIOSubmit"));
+			ctx.aioSubmitLatency.init(LiteralStringRef("AsyncFile.AIOSubmitLatency"));
 			ctx.countAIOCollect.init(LiteralStringRef("AsyncFile.CountAIOCollect"));
 			ctx.submitMetric.init(LiteralStringRef("AsyncFile.Submit"));
 			ctx.countPreSubmitTruncate.init(LiteralStringRef("AsyncFile.CountPreAIOSubmitTruncate"));
