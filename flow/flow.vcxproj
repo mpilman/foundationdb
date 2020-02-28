@@ -45,6 +45,7 @@
     <ClCompile Include="ThreadHelper.cpp" />
     <ClCompile Include="ThreadPrimitives.cpp" />
     <ClCompile Include="Platform.cpp" />
+    <ClCompile Include="execinfo.c" />
     <ClCompile Include="stacktrace.amalgamation.cpp" />
     <ClCompile Include="Trace.cpp" />
     <ClCompile Include="UnitTest.cpp" />
@@ -70,6 +71,7 @@
     <ClInclude Include="network.h" />
     <ClInclude Include="flow.h" />
 		<ClInclude Include="flat_buffers.h" />
+    <ClInclude Include="execinfo.h" />
     <ActorCompiler Include="EventTypes.actor.h">
       <EnableCompile>false</EnableCompile>
       <EnableCompile>false</EnableCompile>

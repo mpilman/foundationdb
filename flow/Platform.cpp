@@ -101,6 +101,8 @@
 #include <signal.h>
 /* Needed for gnu_dev_{major,minor} */
 #include <sys/sysmacros.h>
+/* Needed for dynamic linker support */
+#include <dlfcn.h>
 #endif
 
 #ifdef __APPLE__
@@ -653,7 +655,7 @@ void getDiskStatistics(std::string const& directory, uint64_t& currentIOs, uint6
 		unsigned int minorId;
 		disk_stream >> majorId;
 		disk_stream >> minorId;
-		if(majorId == (unsigned int) gnu_dev_major(buf.st_dev) && minorId == (unsigned int) gnu_dev_minor(buf.st_dev)) {
+		if(majorId == (unsigned int) major(buf.st_dev) && minorId == (unsigned int) minor(buf.st_dev)) {
 			std::string ignore;
 			uint64_t rd_ios;	/* # of reads completed */
 			//	    This is the total number of reads completed successfully.
@@ -2535,7 +2537,6 @@ extern "C" void flushAndExit(int exitCode) {
 }
 
 #ifdef __unixish__
-#include <dlfcn.h>
 
 #ifdef __linux__
 #include <link.h>
@@ -2552,7 +2553,7 @@ ImageInfo getImageInfo(const void *symbol) {
 	Dl_info info;
 	ImageInfo imageInfo;
 
-#ifdef __linux__
+#if defined(__linux__) && defined(RTLD_DL_LINKMAP)
 	link_map *linkMap;
 	int res = dladdr1(symbol, &info, (void**)&linkMap, RTLD_DL_LINKMAP);
 #else
@@ -2562,7 +2563,7 @@ ImageInfo getImageInfo(const void *symbol) {
 	if(res != 0) {
 		std::string imageFile = basename(info.dli_fname);
 		// If we have a client library that doesn't end in the appropriate extension, we will get the wrong debug suffix. This should only be a cosmetic problem, though.
-#ifdef __linux__
+#if defined(__linux__) && defined(RTLD_DL_LINKMAP)
 		imageInfo.offset = (void*)linkMap->l_addr;
 		if(imageFile.length() >= 3 && imageFile.rfind(".so") == imageFile.length()-3) {
 #else
@@ -2589,7 +2590,7 @@ ImageInfo getCachedImageInfo() {
 	return info;
 }
 
-#include <execinfo.h>
+//#include <execinfo.h>
 
 namespace platform {
 void* getImageOffset() {

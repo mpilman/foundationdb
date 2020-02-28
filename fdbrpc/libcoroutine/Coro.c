@@ -27,7 +27,7 @@
 
 	If you don't see those members, Kentaro suggests writting a simple
 	test app that calls setjmp and dumps out the contents of the jmp_buf.
-	(The PC and SP should be in jmp_buf->__jmpbuf).
+	(The PC and SP should be in jmp_buf->__jb).
 
 	Using something like GDB to be able to peek into register contents right
 	before the setjmp occurs would be helpful also.
@@ -351,8 +351,8 @@ void Coro_setup(Coro *self, void *arg)
 	*   amd64 computer:
 	*   /usr/include/gento-multilib/amd64/bits/setjmp.h
 	*   Which was ultimatly included from setjmp.h in /usr/include. */
-	self->env[0].__jmpbuf[6] = ((unsigned long)(Coro_stack(self)));
-	self->env[0].__jmpbuf[7] = ((long)Coro_Start);
+	self->env[0].__jb[6] = ((unsigned long)(Coro_stack(self)));
+	self->env[0].__jb[7] = ((long)Coro_Start);
 }
 
 #elif defined(HAS_UCONTEXT_ON_PRE_SOLARIS_10)
@@ -635,21 +635,21 @@ void Coro_setup(Coro *self, void *arg)
 // Various flavors of Linux.
 #if defined(JB_GPR1)
 // Linux/PPC
-buf->__jmpbuf[JB_GPR1] = ((int) stack + stacksize - 64 + 15) & ~15;
-buf->__jmpbuf[JB_LR]   = (int) Coro_Start;
+buf->__jb[JB_GPR1] = ((int) stack + stacksize - 64 + 15) & ~15;
+buf->__jb[JB_LR]   = (int) Coro_Start;
 return;
 
 #elif defined(JB_RBX)
 // Linux/Opteron
-buf->__jmpbuf[JB_RSP] = (long int )stack + stacksize;
-buf->__jmpbuf[JB_PC]  = Coro_Start;
+buf->__jb[JB_RSP] = (long int )stack + stacksize;
+buf->__jb[JB_PC]  = Coro_Start;
 return;
 
 #elif defined(JB_SP)
 
 // Linux/x86 with glibc2
-buf->__jmpbuf[JB_SP] = (int)stack + stacksize;
-buf->__jmpbuf[JB_PC] = (int)Coro_StartWithArg;
+buf->__jb[JB_SP] = (int)stack + stacksize;
+buf->__jb[JB_PC] = (int)Coro_StartWithArg;
 // Push the argument on the stack (stack grows downwards)
 // note: stack is stacksize + 16 bytes long
 ((int *)stack)[stacksize/sizeof(int) + 1] = (int)self;
@@ -663,8 +663,8 @@ return;
 
 #elif defined(__JMP_BUF_SP)
 // arm-linux on the sharp zauras
-buf->__jmpbuf[__JMP_BUF_SP]   = (int)stack + stacksize;
-buf->__jmpbuf[__JMP_BUF_SP+1] = (int)Coro_Start;
+buf->__jb[__JMP_BUF_SP]   = (int)stack + stacksize;
+buf->__jb[__JMP_BUF_SP+1] = (int)Coro_Start;
 return;
 
 #else

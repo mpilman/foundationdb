@@ -24,12 +24,16 @@
 
 #ifdef __linux__
 
-#include <execinfo.h>
+//#include <execinfo.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <link.h>
+
+#include <time.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 
 #include "flow/Platform.h"
 #include "flow/actorcompiler.h" // This must be the last include.
@@ -37,6 +41,29 @@
 extern volatile thread_local int profilingEnabled;
 
 static uint64_t sys_gettid() { return syscall(__NR_gettid); }
+
+struct ksigevent
+{
+	union sigval sigev_value;
+	int sigev_signo;
+	int sigev_notify;
+	int sigev_tid;
+};
+
+static int _timer_create(clockid_t clk, struct ksigevent *__restrict evp, timer_t *__restrict res)
+{
+	int timerid;
+	if (syscall(SYS_timer_create, clk, &evp, &timerid) < 0)
+	{
+		timerid = -1;
+	}
+	if (timerid < 0)
+	{
+		return -1;
+	}
+	*res = (void *)(intptr_t)timerid;
+	return 0;
+}
 
 struct SignalClosure {
 	void (* func)(int, siginfo_t*, void*, void*);
@@ -226,15 +253,19 @@ struct Profiler {
 		tv.it_value.tv_sec = 0;
 		tv.it_value.tv_nsec = nondeterministicRandom()->randomInt(period_ns/2,period_ns+1);
 
-		sigevent sev;
-		sev.sigev_notify = SIGEV_THREAD_ID;
-		sev.sigev_signo = SIGPROF;
-		sev.sigev_value.sival_ptr = &(self->signalClosure);
-		sev._sigev_un._tid = sys_gettid();
-		if(timer_create( CLOCK_THREAD_CPUTIME_ID, &sev, &self->periodicTimer ) != 0) {
+		struct ksigevent ev;
+		timer_t timer;
+		// Create timer signal
+		memset(&ev, 0, sizeof(ev));
+		ev.sigev_notify = 4; // SIGEV_THREAD_ID
+		ev.sigev_signo = SIGPROF;
+		ev.sigev_value.sival_ptr = &(self->signalClosure);
+		ev.sigev_tid = sys_gettid();
+		if (_timer_create(CLOCK_THREAD_CPUTIME_ID, &ev, &timer) != 0) {
 			TraceEvent(SevWarn, "FailedToCreateProfilingTimer").GetLastError();
 			return Void();
 		}
+
 		self->timerInitialized = true;
 		if(timer_settime( self->periodicTimer, 0, &tv, NULL ) != 0) {
 			TraceEvent(SevWarn, "FailedToSetProfilingTimer").GetLastError();

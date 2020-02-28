@@ -44,6 +44,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <stdio.h>
+#include <sys/types.h>
 
 #ifdef __unixish__
 #include <unistd.h>
@@ -185,6 +186,8 @@ THREAD_HANDLE startThread(void *(func) (void *), void *arg);
 #else
 #error Port me
 #endif
+
+#include "execinfo.h"
 
 void waitThread(THREAD_HANDLE thread);
 
@@ -520,7 +523,7 @@ inline static void aligned_free(void* ptr) { _aligned_free(ptr); }
 #elif defined(__linux__)
 #include <malloc.h>
 inline static void aligned_free(void* ptr) { free(ptr); }
-#if (!defined(_ISOC11_SOURCE)) // old libc versions
+#if (!defined(_ISOC11_SOURCE) && !defined(_GNU_SOURCE)) // old libc versions
 inline static void* aligned_alloc(size_t alignment, size_t size) { return memalign(alignment, size); }
 #endif
 #elif defined(__APPLE__)

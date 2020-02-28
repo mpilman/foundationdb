@@ -39,6 +39,8 @@
 #endif
 */
 
+#undef USE_UCONTEXT
+#define USE_SETJMP 1
 // Pick which coro implementation to use
 // The make file can set -DUSE_FIBERS, -DUSE_UCONTEXT or -DUSE_SETJMP to force this choice.
 #if !defined(USE_FIBERS) && !defined(USE_UCONTEXT) && !defined(USE_SETJMP)

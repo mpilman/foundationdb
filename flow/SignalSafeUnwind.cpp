@@ -26,6 +26,7 @@ int64_t dl_iterate_phdr_calls = 0;
 
 #include <link.h>
 #include <mutex>
+#include <dlfcn.h>
 
 static int (*chain_dl_iterate_phdr)(
 		int (*callback) (struct dl_phdr_info *info, size_t size, void *data),
