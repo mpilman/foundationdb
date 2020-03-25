@@ -68,6 +68,8 @@ set(FLOW_SRCS
 	crc32c.h
   crc32c.cpp
   error_definitions.h
+  execinfo.h
+  execinfo.c
   ${CMAKE_CURRENT_BINARY_DIR}/SourceVersion.h
   flat_buffers.h
   flat_buffers.cpp

@@ -12,6 +12,7 @@ set(USE_CCACHE OFF CACHE BOOL "Use ccache for compilation if available")
 set(RELATIVE_DEBUG_PATHS OFF CACHE BOOL "Use relative file paths in debug info")
 set(STATIC_LINK_LIBCXX ON CACHE BOOL "Statically link libstdcpp/libc++")
 set(USE_WERROR OFF CACHE BOOL "Compile with -Werror. Recommended for local development and CI.")
+set(STATIC_LIBC OFF CACHE BOOL "Statically link libc (only recommended for Alpine Linux)")
 
 set(rel_debug_paths OFF)
 if(RELATIVE_DEBUG_PATHS)
@@ -20,6 +21,10 @@ endif()
 
 if(USE_GPERFTOOLS)
   find_package(Gperftools REQUIRED)
+endif()
+
+if(STATIC_LIBC)
+  add_link_options(-static)
 endif()
 
 add_compile_options(-DCMAKE_BUILD)
